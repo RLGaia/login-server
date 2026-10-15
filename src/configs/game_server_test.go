@@ -203,3 +203,34 @@ func TestGetServerVocations(t *testing.T) {
 		})
 	}
 }
+
+func TestPvpTypeFromWorldType(t *testing.T) {
+	tests := map[string]uint32{
+		"pvp":          PvpTypeOpen,
+		"no-pvp":       PvpTypeOptional,
+		" No-PvP ":     PvpTypeOptional,
+		"pvp-enforced": PvpTypeHardcore,
+		"":             PvpTypeOpen,
+		"unknown":      PvpTypeOpen,
+	}
+	for worldType, want := range tests {
+		if got := PvpTypeFromWorldType(worldType); got != want {
+			t.Errorf("PvpTypeFromWorldType(%q) = %d, want %d", worldType, got, want)
+		}
+	}
+}
+
+func TestResolvePvpType(t *testing.T) {
+	t.Setenv(EnvServerPvpTypeKey, "")
+	if got := ResolvePvpType("no-pvp"); got != PvpTypeOptional {
+		t.Errorf("without override got %d, want %d", got, PvpTypeOptional)
+	}
+	t.Setenv(EnvServerPvpTypeKey, "2")
+	if got := ResolvePvpType("no-pvp"); got != PvpTypeHardcore {
+		t.Errorf("with override got %d, want %d", got, PvpTypeHardcore)
+	}
+	t.Setenv(EnvServerPvpTypeKey, "abc")
+	if got := ResolvePvpType("no-pvp"); got != PvpTypeOptional {
+		t.Errorf("with invalid override got %d, want %d", got, PvpTypeOptional)
+	}
+}

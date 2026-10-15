@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +13,7 @@ const EnvServerLocationKey = "SERVER_LOCATION"
 const EnvServerNameKey = "SERVER_NAME"
 const EnvServerPortKey = "SERVER_PORT"
 const EnvServerPathKey = "SERVER_PATH"
+const EnvServerPvpTypeKey = "SERVER_PVP_TYPE"
 const DefaultServerName = "OTServBR-Global"
 
 const (
@@ -67,6 +69,40 @@ func (gameServerConfigs *GameServerConfigs) Format() string {
 		gameServerConfigs.Location,
 	)
 }
+
+// PvP types understood by the client's character list.
+const (
+	PvpTypeOpen     uint32 = 0
+	PvpTypeOptional uint32 = 1
+	PvpTypeHardcore uint32 = 2
+)
+
+// PvpTypeFromWorldType maps Canary's worldType setting ("pvp", "no-pvp",
+// "pvp-enforced") to the PvP type the client shows in its character list.
+// Unknown or empty values are reported as open PvP, the previous behavior.
+func PvpTypeFromWorldType(worldType string) uint32 {
+	switch strings.ToLower(strings.TrimSpace(worldType)) {
+	case "no-pvp":
+		return PvpTypeOptional
+	case "pvp-enforced":
+		return PvpTypeHardcore
+	default:
+		return PvpTypeOpen
+	}
+}
+
+// ResolvePvpType returns SERVER_PVP_TYPE when it holds a valid number and
+// otherwise the PvP type derived from Canary's worldType.
+func ResolvePvpType(worldType string) uint32 {
+	value := strings.TrimSpace(GetEnvStr(EnvServerPvpTypeKey, ""))
+	if value != "" {
+		if parsed, err := strconv.ParseUint(value, 10, 32); err == nil {
+			return uint32(parsed)
+		}
+	}
+	return PvpTypeFromWorldType(worldType)
+}
+
 func GetGameServerConfigs() GameServerConfigs {
 	return GameServerConfigs{
 		IP:       GetEnvStr(EnvServerIpKey, "127.0.0.1"),

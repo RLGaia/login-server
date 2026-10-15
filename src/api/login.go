@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/opentibiabr/login-server/src/api/models"
+	"github.com/opentibiabr/login-server/src/configs"
 	"github.com/opentibiabr/login-server/src/database"
 	"github.com/opentibiabr/login-server/src/grpc/login_proto_messages"
 	"github.com/opentibiabr/login-server/src/logger"
@@ -62,6 +63,10 @@ func (_api *Api) login(c *gin.Context) {
 		}
 
 		response := buildPayloadFromMessage(res, payload)
+		pvpType := configs.ResolvePvpType(_api.LuaConfigManager.GetString("worldType"))
+		for i := range response.PlayData.Worlds {
+			response.PlayData.Worlds[i].PvpType = pvpType
+		}
 		response.Session.SessionKey = buildSessionKey(response.Session.SessionKey, _api.authTypeIsPassword(), payload.Email, payload.Password)
 		c.JSON(http.StatusOK, response)
 	default:

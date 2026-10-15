@@ -5,6 +5,9 @@ on:
   release:
     types: [created]
 
+permissions:
+  contents: write # upload the built binaries to the release
+
 jobs:
   job:
     name: Linux
