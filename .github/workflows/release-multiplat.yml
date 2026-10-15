@@ -1,36 +1,65 @@
 ---
-name: Release - Linux
+# Builds the login server for Windows and Linux and attaches the zips (plus a
+# .sha256 file each) to a GitHub release. Runs when a release is published, or
+# by hand for an existing release (Actions > Release - Binaries > Run workflow,
+# giving the release tag).
+#
+# Replaces the old go-release-action workflow, whose bundled Go toolchain was
+# too old for this code.
+name: Release - Binaries
 
 on:
   release:
-    types: [created]
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the existing release to attach the binaries to
+        required: true
 
 permissions:
   contents: write # upload the built binaries to the release
 
 jobs:
-  job:
-    name: Linux
-    runs-on: ubuntu-latest
+  build:
+    name: ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
-        # build and publish in parallel: linux/386, linux/amd64, windows/386, windows/amd64, darwin/amd64
-        goos: [linux, windows, darwin]
-        goarch: ["386", amd64]
-        exclude:
-          - goarch: "386"
-            goos: darwin
+        include:
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+          - goos: linux
+            goarch: amd64
+            ext: ""
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
           persist-credentials: false
 
-      - name: Build and Release
-        uses: wangyoucao577/go-release-action@1a87d97ce87db435508d150622a9ab5472db15ac # v1.17
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          goos: ${{ matrix.goos }}
-          goarch: ${{ matrix.goarch }}
-          project_path: ./src/
+          go-version: "1.25.x"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o "login-server${{ matrix.ext }}" ./src/
+
+      - name: Package and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          name="login-server-${TAG}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          zip "${name}.zip" "login-server${{ matrix.ext }}"
+          sha256sum "${name}.zip" > "${name}.zip.sha256"
+          gh release upload "${TAG}" "${name}.zip" "${name}.zip.sha256" --clobber --repo "${{ github.repository }}"
